@@ -16,7 +16,7 @@ defmodule KVstore.Mixfile do
   def application do
     [
       applications: [:logger, :cowboy, :plug],
-      mod: {KVstore, []}
+      mod: {KVstore.Application, []}
     ]
   end
 

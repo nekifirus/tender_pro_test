@@ -1,1 +1,5 @@
-Здесь можно собрать вспомогательные функци
+defmodule KVstore.Utils do
+  @moduledoc """
+  Module for utils functions
+  """
+end

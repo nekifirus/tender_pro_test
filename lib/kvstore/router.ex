@@ -1,1 +1,5 @@
-Для веб сервера нужен маршрутизатор, место ему именно тут.
+defmodule KVstore.Router do
+  @moduledoc """
+  KVstore application router module
+  """
+end
