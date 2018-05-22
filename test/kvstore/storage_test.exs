@@ -39,10 +39,10 @@ defmodule KVstore.StorageTest do
   test "store table contents to dets" do
     key = :test_key
     value = :test_value
-    assert Storage.insert({key, value}) == {key, value}
+    Storage.insert({key, value})
 
     :dets.open_file(@file_name, [type: :set])
-    assert :dets.lookup(@file_name, key) == [{key, value}]
+    assert [{_key, _value, _ttl}] = :dets.lookup(@file_name, key)
     :dets.close(@file_name)
   end
 
@@ -54,6 +54,33 @@ defmodule KVstore.StorageTest do
 
     :dets.open_file(@file_name, [type: :set])
     assert :dets.info(@file_name)[:size] == 0
+    :dets.close(@file_name)
+  end
+
+  test "store kill time with pair" do
+    ttl = Application.get_env(:kvstore, :ttl)
+    time_now = :erlang.system_time(:seconds)
+    key = "key"
+    value = "value"
+
+    assert Storage.insert({key, value}) == {key, value, time_now + ttl}
+  end
+
+  test "kill pair when time over" do
+    ttl = Application.get_env(:kvstore, :ttl)
+    time_now = :erlang.system_time(:seconds)
+    kill_time = time_now + ttl
+    key = "key"
+    value = "value"
+    :dets.open_file(@file_name, [type: :set])
+
+    assert Storage.insert({key, value}) == {key, value, time_now + ttl}
+    assert :ets.lookup(@table_name, key) == [{key, value, kill_time}]
+    assert :dets.lookup(@file_name, key) == [{key, value, kill_time}]
+
+    :timer.sleep(ttl * 1000)
+    assert :ets.lookup(@table_name, key) == []
+    assert :dets.lookup(@file_name, key) == []
     :dets.close(@file_name)
   end
 end

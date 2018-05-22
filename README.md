@@ -1,7 +1,14 @@
 # Kvstore
 
-iex -S mix
+Simple key-value storage on ETS and DETS with TTL for pairs
 
+## Run
+
+mix run --no-halt
+
+## Usage
+
+open localhost:8888/ to get description
 
 License
 -------

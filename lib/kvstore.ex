@@ -7,7 +7,8 @@ defmodule KVstore do
 
   @spec list() :: [any()]
   def list() do
-    {:ok, :ets.tab2list(table_name())}
+    list = table_name() |> :ets.tab2list() |> drop_ttl()
+    {:ok, list}
   end
 
 
@@ -15,8 +16,8 @@ defmodule KVstore do
   def create({key, value}) do
     case get(key) do
       {:error, :not_found} ->
-        atom_key = String.to_atom(key)
-        {:ok, Storage.insert({atom_key, value})}
+        {key, value, _ttl} = Storage.insert({key, value})
+        {:ok, {key, value}}
 
       {:ok, _} ->
         {:error, :record_already_exist}
@@ -25,26 +26,24 @@ defmodule KVstore do
 
   @spec get(binary) :: {:ok, tuple} | {:error, :not_found}
   def get(key) do
-    atom_key = String.to_atom(key)
-
-    case :ets.lookup(table_name(), atom_key) do
+    case :ets.lookup(table_name(), key) do
       [] -> {:error, :not_found}
-      [{atom_key, value}] -> {:ok, {atom_key, value}}
+      [{atom, value, _ttl}] -> {:ok, {key, value}}
     end
   end
 
   @spec update(tuple) :: {:ok, tuple} | {:error, :not_found}
   def update({key, new_value}) do
-    with {:ok, {atom_key, _value}} <- get(key),
-         {atom_key, updated_value} <- Storage.insert({atom_key, new_value}) do
-      {:ok, {atom_key, updated_value}}
+    with {:ok, {key, _value}} <- get(key),
+         {key, updated_value, _ttl} <- Storage.insert({key, new_value}) do
+      {:ok, {key, updated_value}}
     end
   end
 
   @spec delete(binary) :: {:ok, [tuple]} :: {:error, :not_found}
   def delete(key) do
-    with {:ok, {atom_key, _value}} <- get(key),
-         new_table <- Storage.delete(atom_key) do
+    with {:ok, {key, _value}} <- get(key),
+         new_table <- key |> Storage.delete() |> drop_ttl() do
       {:ok, new_table}
     end
   end
@@ -53,4 +52,7 @@ defmodule KVstore do
   def delete_all(), do: {:ok, Storage.clear}
 
   defp table_name(), do: Application.get_env(:kvstore, :table_name)
+
+  defp drop_ttl([]), do: []
+  defp drop_ttl(list) when is_list(list), do: Enum.map(list, fn {key, value, ttl} -> {key, value} end)
 end

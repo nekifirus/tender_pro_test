@@ -12,13 +12,13 @@ defmodule KVstore.Storage do
   Update or insert `value` for `key` in table and return {key, value}
   """
   @spec insert(tuple()) :: tuple()
-  def insert({key, _value} = data) when is_atom(key), do: GenServer.call(__MODULE__, {:insert, data})
+  def insert(data), do: GenServer.call(__MODULE__, {:insert, data})
 
   @doc """
   Delete {key, value} from table
   """
-  @spec delete(atom) :: [tuple]
-  def delete(key) when is_atom(key), do: GenServer.call(__MODULE__, {:delete, key})
+  @spec delete(binary) :: [tuple]
+  def delete(key), do: GenServer.call(__MODULE__, {:delete, key})
 
   @doc """
   Clear table
@@ -46,6 +46,8 @@ defmodule KVstore.Storage do
 
     :dets.close(dets_table)
 
+    schedule_work()
+
     {:ok, %{ets_table: ets_table, dets_table: dets_table}}
   end
 
@@ -62,14 +64,15 @@ defmodule KVstore.Storage do
   @doc """
   On insert store changes in dets
   """
-  def handle_call({:insert, data}, _from, state) do
-    :ets.insert(state.ets_table, data)
+  def handle_call({:insert, {key, value}}, _from, state) do
+    ttl = :erlang.system_time(:seconds) + Application.get_env(:kvstore, :ttl)
+    :ets.insert(state.ets_table, {key, value, ttl})
 
     :dets.open_file(state.dets_table, [type: :set])
     :ets.to_dets(state.ets_table, state.dets_table)
     :dets.close(state.dets_table)
 
-    {:reply, data, state}
+    {:reply, {key, value, ttl}, state}
   end
 
   @doc """
@@ -100,6 +103,25 @@ defmodule KVstore.Storage do
   def handle_call(_request, _from, state), do: {:reply, state, state}
   def handle_cast(_request, state), do: {:reply, state}
 
+  def handle_info(:work, state) do
+    time_now = :erlang.system_time(:seconds)
+    query = [{{:"$1", :"$2", :"$3"}, [{:"=<", :"$3", {:const, time_now}}], [:"$1"]}]
+
+    state.ets_table
+    |> :ets.select(query)
+    |> Enum.each(fn x ->
+      :ets.delete(state.ets_table, x)
+      :dets.delete(state.dets_table, x)
+    end)
+
+    schedule_work()
+    {:noreply, state}
+  end
+
   defp table_name(), do: Application.get_env(:kvstore, :table_name)
   defp file_name(), do: Application.get_env(:kvstore, :file_name)
+
+  defp schedule_work() do
+    Process.send_after(self(), :work, 1000)
+  end
 end

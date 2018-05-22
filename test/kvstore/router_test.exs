@@ -65,7 +65,7 @@ defmodule KVstore.RouterTest do
     assert conn.status == 200
     assert conn.resp_body == "Requested pair\n\n\t#{key}\t\t\t#{value}\n"
 
-    assert KVstore.get(key) == {:ok, {:new_key, "new_value"}}
+    assert KVstore.get(key) == {:ok, {key, value}}
   end
 
   test "post /storage/key/value error when pair exist" do
@@ -94,7 +94,7 @@ defmodule KVstore.RouterTest do
     assert conn.status == 200
     assert conn.resp_body == "Requested pair\n\n\t#{key}\t\t\t#{new_value}\n"
 
-    assert KVstore.get(key) == {:ok, {:new_key, "new_value"}}
+    assert KVstore.get(key) == {:ok, {key, new_value}}
   end
 
   test "put /storage/key error when pair not exist" do
@@ -126,7 +126,6 @@ defmodule KVstore.RouterTest do
 
   test "delete /storage/key error when pair not exist" do
     key = "new_key"
-    value = "value"
     conn =
       conn(:delete, "/storage/#{key}", "")
       |> Router.call(@opts)
